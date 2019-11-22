@@ -17,6 +17,9 @@ Or the package can be directly installed from the GitHub repository using
 ```
 pip install git+git://github.com/judithabk6/clonesig.git
 ```
+
+Installation time is a few minutes on a standard personal computer.
+
 ## Usage
 ### Input
 The easiest was to run CloneSig is by using the wrapper function `run_clonesig` in a python script. The required inputs of this function are 
