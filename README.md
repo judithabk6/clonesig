@@ -32,7 +32,7 @@ The easiest was to run CloneSig is by using the wrapper function `run_clonesig` 
 - `purity` : float in [0, 1] an estimate of the tumor purity of the sample
 - `inputMU` : array-like (L, 96) known L signatures to be fit by clonesig (can be obtained from the function `get_MU`)
 
-If you use the package `pandas` to read those data from a csv-like file, be careful to pass numpy arrays as input (matrices), and note pandas Series (see [the example run](https://github.com/judithabk6/clonesig/blob/master/clonesig/examples/full_CloneSig_run_with_simulated_data.ipynb)).
+If you use the package `pandas` to read those data from a csv-like file, be careful to pass numpy arrays as input (matrices), and note pandas Series (see [the example run](https://github.com/judithabk6/clonesig/blob/master/examples/full_CloneSig_run_with_simulated_data.ipynb)).
 
 A basic running code is
 
@@ -84,7 +84,7 @@ est.vmnu[np.arange(est.N), est.qun.argmax(axis=1), :].argmax(axis=1) +1
 
 
 ### Examples
-Feel free to check this jupyter notebook with [a full example run](https://github.com/judithabk6/clonesig/blob/master/clonesig/examples/full_CloneSig_run_with_simulated_data.ipynb)
+Feel free to check this jupyter notebook with [a full example run](https://github.com/judithabk6/clonesig/blob/master/examples/full_CloneSig_run_with_simulated_data.ipynb)
 
 The full pipeline (simulation, conversion of simulation to a dataframe, and launch of CloneSig fit from an input table) is detailed, and simple plots to visualize the results are shown.
 
