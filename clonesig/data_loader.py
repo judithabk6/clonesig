@@ -5,6 +5,7 @@ import pandas as pd
 import os
 from sklearn import preprocessing
 import numpy as np
+from scipy.stats import binom
 import pathlib
 import pickle
 from clonesig.estimator import Estimator
@@ -50,6 +51,51 @@ def beta_binomial(n, phi, rho, size=None):
     p = np.random.beta(alpha, beta, size)
     X = np.random.binomial(n, p, size)
     return X
+
+
+def get_ccf_no_adj(mult, cn, alt, ref, PURITY, grid_size=101):
+    """
+    function copied from https://github.com/broadinstitute/PhylogicNDT/blob/\
+        master/PhylogicSim/SimEngine.py last commit 01fd50b
+
+    Calculate the ccf distribution for a mutation given it's alt and ref count,
+    purity, cn and multiplicity.
+    Uses a binomial to compute the distirbution, which as of this writting, does
+    not make sense.
+    Parameters
+    ----------
+    mult : int
+        multiplicity of alternate allele
+    cn : int
+        total copy number
+    alt : type
+        number of alternate reads
+    ref : type
+        number of reference reads
+    PURITY : type
+        sample purity
+    grid_size : type
+        number of bins in which to divide the ccf histogram.
+    Returns
+    -------
+    numpy.array
+        Numpy array of size grid_size with the normalized ccf distribution.
+    """
+    N = len(mult)
+    ccf_space = np.linspace(0, 1, grid_size)
+    ccf_dist = np.zeros((N, grid_size))
+
+    for mult_1_bin_val_idx, mult_1_bin_val in enumerate(ccf_space):
+        x = mult_1_bin_val * mult * PURITY / (
+                    float(mult_1_bin_val) * mult * PURITY + mult_1_bin_val * \
+                    (cn - mult) * PURITY + (1 - mult_1_bin_val) * \
+                    (cn) * PURITY + 2 * (1.0 - PURITY))
+        m1_draw = binom.pmf(alt, alt + ref, x)
+        ccf_dist[:, mult_1_bin_val_idx] = m1_draw
+
+    ccf_dist[np.isnan(ccf_dist)] = 0.
+    row_sums = ccf_dist.sum(axis=1)
+    return ccf_dist / row_sums[:, np.newaxis]
 
 """ test values
 filename_maf = 'tmp/useful_final_qc_merge_cnv_purity.csv'
@@ -115,27 +161,33 @@ class SimLoader(mixin_init_parameters.MixinInitParameters):
         """
         N is the number of mutations
         J is the number of clones
-        xi_param is parameters to simulate xi,the proportion of mutations belonging to each clone
-            if xi is None, xi is drawn from a dirichlet process with each alpha
-            set to 1 (equivalent to no prior)
+        xi_param is parameters to simulate xi,the proportion of mutations
+            belonging to each clone if xi is None, xi is drawn from a dirichlet
+            process with each alpha set to 1 (equivalent to no prior)
             otherwise, xi_param is a vector of length J, summing to 1
             and we set xi = xi_param
-        pi_param is the parameters to set pi, a MxJ proportion of each signature in each clone.
-            pi_param can alternatively be a list of indexes of active signatures in the
-            truncal clone. pi_param can also be an int setting the number of active
+        pi_param is the parameters to set pi, a MxJ proportion of each
+            signature in each clone. pi_param can alternatively be a list of
+            indexes of active signatures in the truncal clone. pi_param can
+            also be an int setting the number of active
             signatures in the truncal clone.
-        phi_param is the parameters to set phi, a J-long vector representing the cellular prevalence
-            of the clones.
+        phi_param is the parameters to set phi, a J-long vector representing
+            the cellular prevalence of the clones.
             if phi_param is a vector, we set phi=phi_param
-            if phi_param is None, we draw phi as phi[0]=1 (assume clonal mutations), and iteratively
-                we draw phi[i] as a uniform variable on [0, phi[i-1]], i=1...J-1
+            if phi_param is None, we draw phi as phi[0]=1
+                (assume clonal mutations), and iteratively
+                we draw phi[i] as a uniform variable on
+                [0, phi[i-1]], i=1...J-1
         rho_param is the overdispersion parameter.
             if rho_param is a float, rho=rho_param
-            if rho is None, we draw rho from a normal distribution of mean 60 and variance 5
+            if rho is None, we draw rho from a normal distribution of mean 60
+                and variance 5
         purity_param is the purity
             if purity_param is a float, purity=purity_param
-            if purity_param is None, we draw purity from a normal distrib of mean 0.7 and variance 0.1
-        change_sig_activity  is a boolean used to simulate pi, with either a constant signature activity between clones
+            if purity_param is None, we draw purity from a normal distrib of
+                mean 0.7 and variance 0.1
+        change_sig_activity  is a boolean used to simulate pi, with either a
+            constant signature activity between clones
             or with a different signature activity
         dip_prop is the proportion of the genome that is diploid
         """
@@ -347,7 +399,7 @@ class SimLoader(mixin_init_parameters.MixinInitParameters):
         data_df = self._get_data_df()
         palimpsest_snv_fields = ['Sample', 'Type', 'CHROM', 'POS', 'REF',
                                  'ALT', 'Tumor_Varcount', 'Tumor_Depth',
-                                 'Normal_Depth', # 'Gene_Name', 'Driver',
+                                 'Normal_Depth',  # 'Gene_Name', 'Driver',
                                  'substype', 'context3', 'mutcat3']
         data_df = data_df.assign(Sample=foldername.split('/')[1])
         data_df = data_df.assign(Type='SNV')
@@ -449,6 +501,79 @@ class SimLoader(mixin_init_parameters.MixinInitParameters):
         ccube_df = data_df[ccube_fields]
         ccube_df.to_csv('{}/input.tsv'.format(ccube_outdir),
                         sep='\t', index=False)
+
+    def write_dpclust(self, foldername):
+        data_df = self._get_data_df()
+        dpclust_outdir = '{}/dpclust'.format(foldername)
+        pathlib.Path(dpclust_outdir).mkdir(parents=True, exist_ok=True)
+        dpclust_fields = ['chr', 'end', 'WT.count', 'mut.count',
+                          'subclonal.CN', 'mutation.copy.number',
+                          'subclonal.fraction', 'no.chrs.bearing.mut']
+        data_df = data_df.assign(vaf=data_df.var_counts /
+                                 (data_df.ref_counts + data_df.var_counts))
+        data_df = data_df.assign(
+            total_cn=lambda x: x['minor_cn'] + x['major_cn'])
+        data_df = data_df.assign(
+            vaf_purity=data_df.apply(
+                lambda x: x['vaf']/self.purity *
+                ((1 - self.purity) * 2 + self.purity * x['total_cn']), axis=1))
+        data_df = data_df.assign(multi=data_df.apply(
+            lambda x: int(np.round(x.vaf_purity)) if x.vaf_purity > 1 else 1,
+            axis=1))
+        data_df = data_df.assign(ccf=data_df.apply(
+            lambda x: min(1, x.vaf_purity / x.multi), axis=1))
+
+        data_df = data_df.assign(**{'chr': data_df.chromosome,
+                                    'end': data_df.position,
+                                    'WT.count': data_df.ref_counts,
+                                    'mut.count': data_df.var_counts,
+                                    'subclonal.CN': data_df.total_cn,
+                                    'mutation.copy.number': data_df.vaf_purity,
+                                    'subclonal.fraction': data_df.ccf,
+                                    'no.chrs.bearing.mut': data_df.multi})
+        dpclust_df = data_df[dpclust_fields]
+        dpclust_df.to_csv('{}/input.tsv'.format(dpclust_outdir),
+                          sep='\t', index=False)
+        short_name = foldername.split('/')[-1]
+        info_df = pd.DataFrame(data=[[short_name, short_name, 'input.tsv',
+                                      self.purity]],
+                               columns=['sample', 'subsample', 'datafile',
+                                        'cellularity'])
+        info_df.to_csv('{}/info.tsv'.format(dpclust_outdir),
+                       sep='\t', index=False)
+
+    def write_phylogicndt(self, foldername):
+        gridsize = 101
+        phylogicndt_outdir = '{}/phylogicndt'.format(foldername)
+        pathlib.Path(phylogicndt_outdir).mkdir(parents=True, exist_ok=True)
+        phylo_fields = ['Hugo_Symbol', 'Chromosome', 'Start_position',
+                        'Reference_Allele', 'Tumor_Seq_Allele2', 't_ref_count',
+                        't_alt_count']
+        ccf_colnames = ['ccf_{0:.2f}'.format(i) for i in
+                        np.linspace(0, 1, gridsize)]
+        data_df = self._get_data_df()
+        data_df = data_df.assign(
+            total_cn=lambda x: x['minor_cn'] + x['major_cn'])
+        ccf = get_ccf_no_adj(data_df.mut_cn,
+                             data_df.total_cn,
+                             data_df.var_counts,
+                             data_df.ref_counts,
+                             self.purity,
+                             grid_size=gridsize)
+        ccf_df = pd.DataFrame(data=ccf, columns=ccf_colnames)
+        data_df = data_df. \
+            assign(** {'Hugo_Symbol': 'Unknown',
+                       'Chromosome': 'chr' + data_df.chromosome.astype(str),
+                       'Start_position': data_df.position,
+                       'Reference_Allele': data_df.apply(
+                          lambda x: PAT_LIST[x['trinucleotide']][2], axis=1),
+                       'Tumor_Seq_Allele2': data_df.apply(
+                          lambda x: PAT_LIST[x['trinucleotide']][4], axis=1),
+                       't_ref_count': data_df.ref_counts,
+                       't_alt_count': data_df.var_counts})
+        phylogicndt_df = pd.concat((data_df[phylo_fields], ccf_df), axis=1)
+        phylogicndt_df.to_csv('{}/input.tsv'.format(phylogicndt_outdir),
+                              sep='\t', index=False)
 
     def write_object(self, foldername):
         pathlib.Path(foldername).mkdir(parents=True, exist_ok=True)
