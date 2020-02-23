@@ -276,10 +276,10 @@ def get_MU(cosmic_version=3, cancer_type=None, exome=False, artefact=False):
         sig_matrix = sig.values[:, 2:].astype(float).T
         new_sig_matrix = sig_matrix + mixin_init_parameters.ZERO_PADDING * (sig_matrix == 0)
         MU = new_sig_matrix / new_sig_matrix.sum(axis=1)[:, np.newaxis]
+        filter_filename = 'data/curated_match_signature_cancertype_tcgawes_literature.csv'
+        cancer_type_sig = pd.read_csv(pkg_resources.resource_stream(
+            'clonesig', filter_filename), sep='\t', index_col=0).values
         if cancer_type is not None:
-            filter_filename = 'data/curated_match_signature_cancertype_tcgawes_literature.csv'
-            cancer_type_sig = pd.read_csv(pkg_resources.resource_stream(
-                'clonesig', filter_filename), sep='\t', index_col=0).values
             select = cancer_type_sig[:, cancer_type]
             subMU = MU[select.astype(bool), :]
         else:
