@@ -97,11 +97,14 @@ def split_clone_initialization(previous_est, inputMU):
     return new_phi, new_xi, new_pi
 
 
-def get_ll_test_dof(dof, nb_clones, nb_mut):
+def get_ll_test_dof(inputMU, nb_clones, nb_mut):
     """
     better model in the future, for now just coming from the simulations with
     30 signatures, without copy number. Will provide a better model later...
     """
+    ev, _ = np.linalg.eig(1-sp.spatial.distance.squareform(
+        sp.spatial.distance.pdist(inputMU, 'cosine')))
+    dof = sum(ev > EV_DOF_THRESHOLD)
     if dof == 21:
         return -4.61 + 7.83 * nb_clones + 0 * dof + 0.00168 * nb_mut
     elif dof <= 13:
