@@ -487,7 +487,7 @@ def run_clonesig(T, B, D, C_normal, C_tumor_tot, C_tumor_minor, purity,
                         pi=np.repeat(new_sc_est.pi, new_est.J, axis=0),
                         phi=new_est.phi, tau=new_est.tau, xi=new_est.xi,
                         nu=inputNu)
-    dof_test = get_ll_test_dof(new_inputMU, new_est.J)
+    dof_test = get_ll_test_dof(new_inputMU, new_est.J, new_est.N)
     lr, p = lrtest(cst_est.get_loglikelihood,
                    new_est.get_loglikelihood, dof_test)
     return new_est, lr, p, new_inputMU, cst_est, future_sigs
