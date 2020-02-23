@@ -243,7 +243,7 @@ def remove_small_sigs(previous_est, single_clone_est, min_prop_sig, inputMU):
     return new_est, new_sc_est, new_inputMU
 
 
-def get_MU(cosmic_version=3, cancer_type=None, exome=False):
+def get_MU(cosmic_version=3, cancer_type=None, exome=False, artefact=False):
     """
     this function initializes the MU matrix with v2 or v3 from COSMIC.
     An exome version exists for v3 only.
@@ -277,12 +277,14 @@ def get_MU(cosmic_version=3, cancer_type=None, exome=False):
         new_sig_matrix = sig_matrix + mixin_init_parameters.ZERO_PADDING * (sig_matrix == 0)
         MU = new_sig_matrix / new_sig_matrix.sum(axis=1)[:, np.newaxis]
         if cancer_type is not None:
-            filter_filename = 'data/match_cancer_type_sig_v3.csv'
+            filter_filename = 'data/curated_match_signature_cancertype_tcgawes_literature.csv'
             cancer_type_sig = pd.read_csv(pkg_resources.resource_stream(
-                'clonesig', filter_filename), index_col=0).values
-            select = cancer_type_sig[cancer_type, :]
+                'clonesig', filter_filename), sep='\t', index_col=0).values
+            select = cancer_type_sig[:, cancer_type]
             subMU = MU[select.astype(bool), :]
         else:
+            if not artefact:
+                MU = MU[cancer_type_sig.sum(axis=1).astype(bool), :]
             subMU = MU.copy()
     elif cosmic_version == 2:
         if exome:

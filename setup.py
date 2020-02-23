@@ -23,7 +23,7 @@ setuptools.setup(
                      'data/sigProfiler_exome_SBS_signatures.csv',
                      'data/sigProfiler_SBS_signatures_2019_05_22.csv',
                      'data/match_cancer_type_sig_v2.csv',
-                     'data/match_cancer_type_sig_v3.csv',
+                     'data/curated_match_signature_cancertype_tcgawes_literature.csv',
                      'data/sigProfiler_SBS_signatures_2018_03_28.csv'],
     },
     classifiers=[
