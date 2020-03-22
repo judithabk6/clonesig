@@ -5,7 +5,7 @@ import pandas as pd
 import os
 from sklearn import preprocessing
 import numpy as np
-from scipy.stats import binom
+from scipy.stats import binom, beta
 import pathlib
 import pickle
 from clonesig.estimator import Estimator
@@ -393,6 +393,45 @@ class SimLoader(mixin_init_parameters.MixinInitParameters):
         trinucleotide_count_vaf.to_csv(
             '{}/batch_100_pattern96.csv'.format(tracksig_outdir),
             sep='\t', index=False, header=False)
+
+    def write_tracksigfreq(self, foldername, sample_id=None):
+        data_df = self._get_data_df()
+        pathlib.Path(foldername).mkdir(parents=True, exist_ok=True)
+        if sample_id is None:
+            sample_id = foldername
+
+        data_df = data_df.assign(phat=beta.rvs(data_df.var_counts + 1,
+                                               data_df.ref_counts + 1))
+        data_df = data_df.assign(phi=(2 + self.purity *
+                                      (data_df.major_cn +
+                                       data_df.minor_cn - 2)) *
+                                 data_df.phat)
+        data_df = data_df.assign(qi=beta.rvs(data_df.var_counts + 1,
+                                             data_df.ref_counts + 1))
+        data_df = data_df.assign(
+            qi=data_df.apply(lambda x: min(1, x.qi), axis=1))
+        data_df.sort_values(by='phi', inplace=True, ascending=False)
+        data_df.reset_index(inplace=True, drop=True)
+        data_df = data_df.assign(bin=lambda x: x.index//100 + 1)
+        trinucleotide_count = pd.pivot_table(index=['bin'],
+                                             columns=['trinucleotide'],
+                                             values=['mutation_id'],
+                                             aggfunc='count',
+                                             data=data_df,
+                                             dropna=False)\
+            .fillna(0).astype(int)
+        LE_PAT_tracksig = [c[2] + '_' + c[4] + '_' + c[0] + c[2] + c[6]
+                           for c in PAT_LIST]
+        trinucleotide_count.columns = trinucleotide_count.columns\
+            .droplevel().astype('str')
+        trinucleotide_count.columns = LE_PAT_tracksig
+        tracksigfreq_outdir = '{}/tracksigfreq'.format(foldername)
+        pathlib.Path(tracksigfreq_outdir).mkdir(parents=True, exist_ok=True)
+        trinucleotide_count.T.to_csv(
+            '{}/batch_100_pattern96.csv'.format(tracksigfreq_outdir),
+            sep='\t', index=True, header=True)
+        data_df.to_csv('{}/vcaf.csv'.format(tracksigfreq_outdir),
+                       sep='\t', index=False, header=True)
 
     def write_palimpsest(self, foldername):
         # deal with mutation data
