@@ -151,198 +151,12 @@ class MAFLoader:
             self.purity = float(pf.read())
 
 
-class SimLoader(mixin_init_parameters.MixinInitParameters):
-    """
-    class to simulate data
-    """
-    def __init__(self, N, J, inputMU=None, xi_param=None, pi_param=None, phi_param=None,
-                 rho_param=None, purity_param=None, change_sig_activity=True,
-                 cn=True, D_param=None, dip_prop=None):
-        """
-        N is the number of mutations
-        J is the number of clones
-        xi_param is parameters to simulate xi,the proportion of mutations
-            belonging to each clone if xi is None, xi is drawn from a dirichlet
-            process with each alpha set to 1 (equivalent to no prior)
-            otherwise, xi_param is a vector of length J, summing to 1
-            and we set xi = xi_param
-        pi_param is the parameters to set pi, a MxJ proportion of each
-            signature in each clone. pi_param can alternatively be a list of
-            indexes of active signatures in the truncal clone. pi_param can
-            also be an int setting the number of active
-            signatures in the truncal clone.
-        phi_param is the parameters to set phi, a J-long vector representing
-            the cellular prevalence of the clones.
-            if phi_param is a vector, we set phi=phi_param
-            if phi_param is None, we draw phi as phi[0]=1
-                (assume clonal mutations), and iteratively
-                we draw phi[i] as a uniform variable on
-                [0, phi[i-1]], i=1...J-1
-        rho_param is the overdispersion parameter.
-            if rho_param is a float, rho=rho_param
-            if rho is None, we draw rho from a normal distribution of mean 60
-                and variance 5
-        purity_param is the purity
-            if purity_param is a float, purity=purity_param
-            if purity_param is None, we draw purity from a normal distrib of
-                mean 0.7 and variance 0.1
-        change_sig_activity  is a boolean used to simulate pi, with either a
-            constant signature activity between clones
-            or with a different signature activity
-        dip_prop is the proportion of the genome that is diploid
-        """
-        self.N = N
-        self.J = J
-        self.xi_param = xi_param
-        self.pi_param = pi_param
-        self.phi_param = phi_param
-        self.rho_param = rho_param
-        self.purity_param = purity_param
-        self.change_sig_activity = change_sig_activity
-        self.xi = None
-        self.pi = None
-        self.phi = None
-        self.rho = None
-        self.purity = None
-        self.B = None
-        self.D = None
-        self.C_normal = None
-        self.C_tumor_mut = None
-        self.C_tumor_tot = None
-        self.C_tumor_minor = None
-        self.purity = None
-        self.cn = cn
-        if inputMU is None:
-            self.MU = self.default_mu()
-        else:
-            self.MU = inputMU
-        self.L = self.MU.shape[0]
-        self.K = self.MU.shape[1]
-        self.D_param = D_param
-        self.dip_prop = dip_prop
-
-    def _get_unobserved_nodes(self):
-        self.init_params(pi_param=self.pi_param, phi_param=self.phi_param,
-                         xi_param=self.xi_param, rho_param=self.rho_param,
-                         spasePi=True,
-                         change_sig_activity=self.change_sig_activity)
-
-    def _get_observed_nodes(self):
-        if self.purity_param is None:
-            self.purity = min(np.random.randn() * 0.1 + 0.7, 0.99)
-        else:
-            self.purity = self.purity_param
-        if self.D_param is None:
-            self.D = np.random.lognormal(5, 0.7, self.N).astype(int) + 1
-        else:
-            self.D = (self.D_param * np.ones(self.N)).astype(int)
-        # parameters and distribution chosen at random, worth fitting on TCGA
-        # data?
-        # I made some arbitrary choices of distribution, in particular for D
-        # (the coverage) and for copy number. Maybe this should be further
-        # parametrized?
-        # otherwise it is rather self explanatory with the code.
-        self.C_normal = 2 * np.ones(self.N)
-        if self.cn:
-            if self.dip_prop is None:
-                self.C_tumor_tot = np.max(
-                    ((np.random.lognormal(1, 0.3, self.N)).astype(int),
-                     np.ones(self.N)), axis=0)
-                C_strand1 = (np.random.beta(5, 3, self.N) * self.C_tumor_tot)\
-                    .astype(int)  # un peu trop de 0 pas forcément super grave
-            elif self.dip_prop < 1:
-                p = np.zeros(10)
-                infl_dip = np.min((1, self.dip_prop * 1.1))
-                p[2] = infl_dip
-                p[3] = (1 - infl_dip) / 2
-                p[4] = ((1 - infl_dip) / 2) / 3 * 2
-                p[1] = (1 - p.sum()) / 2
-                p[5:] = (1 - p.sum()) * \
-                    np.array([0.5, 0.25, 0.125, 1/16, 1/32]) / \
-                    np.array([0.5, 0.25, 0.125, 1/16, 1/32]).sum()
-                self.C_tumor_tot = np.random.choice(10, p=p, size=self.N)
-                idx = False * np.ones(self.N).astype(bool)
-                idx[self.C_tumor_tot == 2] = np.random.choice(
-                    [True, False], p=[9/11, 2/11],
-                    size=sum(self.C_tumor_tot == 2))
-                C_strand1 = np.zeros(self.N)
-                C_strand1[idx] = 1
-                C_strand1[~idx] = (np.random.beta(5, 3, len(C_strand1[~idx])) *
-                                   self.C_tumor_tot[~idx]).astype(int)
-            else:
-                self.C_tumor_tot = 2 * np.ones(self.N)
-                C_strand1 = np.ones(self.N)
-            max_mut = np.max(np.vstack((self.C_tumor_tot-C_strand1,
-                                        C_strand1)), axis=0)
-            self.C_tumor_mut = (np.random.rand(self.N) * max_mut)\
-                .astype(int) + 1
-        else:
-            self.C_tumor_tot = 2 * np.ones(self.N)
-            C_strand1 = np.ones(self.N)
-            self.C_tumor_mut = np.ones(self.N)
-
-        self.C_tumor_minor = np.min(np.vstack((self.C_tumor_tot-C_strand1,
-                                               C_strand1)), axis=0)
-
-        self.U = np.random.choice(self.J, self.N, replace=True, p=self.xi)
-        self.B = np.zeros(self.N)
-        for i in range(self.J):
-            phi_bar = self.phi[i] * self.purity * \
-                      self.C_tumor_mut[self.U == i] / \
-                      ((1-self.purity) * self.C_normal[self.U == i] +
-                       self.purity * self.C_tumor_tot[self.U == i])
-            self.B[self.U == i] = beta_binomial(self.D[self.U == i],
-                                                phi_bar, self.rho,
-                                                sum(self.U == i))
-
-        self.S = np.zeros(self.N)
-        for i in range(self.J):
-            self.S[self.U == i] = np.random.choice(self.L, sum(self.U == i),
-                                                   replace=True,
-                                                   p=self.pi[i, :])
-
-        self.T = np.zeros(self.N)
-        for i in range(self.L):
-            self.T[self.S == i] = np.random.choice(self.K, sum(self.S == i),
-                                                   replace=True,
-                                                   p=self.MU[i, :])
-
-    @property
-    def get_loglikelihood(self):
-        est = Estimator(self.T, self.B, self.C_normal, self.C_tumor_tot,
-                        self.C_tumor_minor, self.D, self.purity, self.J,
-                        inputMU=self.MU, pi=self.pi, phi=self.phi, xi=self.xi,
-                        tau=self.tau)
-        return est.get_loglikelihood
-
+class DataWriter():
     def _get_data_df(self):
-        data_df = pd.DataFrame({'mutation_id': ["mut_{}".format(i) for i in
-                                                range(1, self.N+1)],
-                                'chromosome': [1] * self.N,
-                                'position': np.arange(5, 5 + 10*self.N, 10),
-                                'ref_counts': self.D - self.B,
-                                'var_counts': self.B,
-                                'normal_cn': self.C_normal,
-                                'minor_cn': self.C_tumor_minor,
-                                'mut_cn': self.C_tumor_mut,
-                                'major_cn': self.C_tumor_tot -
-                                self.C_tumor_minor,
-                                'total_cn': self.C_tumor_tot,
-                                'trinucleotide': pd.Categorical(
-                                    self.T.astype(int),
-                                    categories=list(range(96)),
-                                    ordered=True),
-                                'signature': self.S.astype(int),
-                                'clone': self.U.astype(int)})
-        return data_df
+        return self.data
 
     def _get_cn_profile_df(self):
-        cn_df = pd.DataFrame({'chromosome': [1] * self.N,
-                              'start': np.arange(1, 1 + 10*self.N, 10),
-                              'end': np.arange(9, 9 + 10*self.N, 10),
-                              'minor': self.C_tumor_minor,
-                              'major': self.C_tumor_tot - self.C_tumor_minor})
-        return cn_df
+        return self.cn_profile
 
     def write_clonesig(self, foldername):
         data_df = self._get_data_df()
@@ -619,3 +433,198 @@ class SimLoader(mixin_init_parameters.MixinInitParameters):
         with open('{}/sim_data'.format(foldername), 'wb') as sim_data_file:
             my_pickler = pickle.Pickler(sim_data_file)
             my_pickler.dump(self)
+
+
+
+class SimLoader(mixin_init_parameters.MixinInitParameters,DataWriter):
+    """
+    class to simulate data
+    """
+    def __init__(self, N, J, inputMU=None, xi_param=None, pi_param=None, phi_param=None,
+                 rho_param=None, purity_param=None, change_sig_activity=True,
+                 cn=True, D_param=None, dip_prop=None):
+        """
+        N is the number of mutations
+        J is the number of clones
+        xi_param is parameters to simulate xi,the proportion of mutations
+            belonging to each clone if xi is None, xi is drawn from a dirichlet
+            process with each alpha set to 1 (equivalent to no prior)
+            otherwise, xi_param is a vector of length J, summing to 1
+            and we set xi = xi_param
+        pi_param is the parameters to set pi, a MxJ proportion of each
+            signature in each clone. pi_param can alternatively be a list of
+            indexes of active signatures in the truncal clone. pi_param can
+            also be an int setting the number of active
+            signatures in the truncal clone.
+        phi_param is the parameters to set phi, a J-long vector representing
+            the cellular prevalence of the clones.
+            if phi_param is a vector, we set phi=phi_param
+            if phi_param is None, we draw phi as phi[0]=1
+                (assume clonal mutations), and iteratively
+                we draw phi[i] as a uniform variable on
+                [0, phi[i-1]], i=1...J-1
+        rho_param is the overdispersion parameter.
+            if rho_param is a float, rho=rho_param
+            if rho is None, we draw rho from a normal distribution of mean 60
+                and variance 5
+        purity_param is the purity
+            if purity_param is a float, purity=purity_param
+            if purity_param is None, we draw purity from a normal distrib of
+                mean 0.7 and variance 0.1
+        change_sig_activity  is a boolean used to simulate pi, with either a
+            constant signature activity between clones
+            or with a different signature activity
+        dip_prop is the proportion of the genome that is diploid
+        """
+        self.N = N
+        self.J = J
+        self.xi_param = xi_param
+        self.pi_param = pi_param
+        self.phi_param = phi_param
+        self.rho_param = rho_param
+        self.purity_param = purity_param
+        self.change_sig_activity = change_sig_activity
+        self.xi = None
+        self.pi = None
+        self.phi = None
+        self.rho = None
+        self.purity = None
+        self.B = None
+        self.D = None
+        self.C_normal = None
+        self.C_tumor_mut = None
+        self.C_tumor_tot = None
+        self.C_tumor_minor = None
+        self.purity = None
+        self.cn = cn
+        if inputMU is None:
+            self.MU = self.default_mu()
+        else:
+            self.MU = inputMU
+        self.L = self.MU.shape[0]
+        self.K = self.MU.shape[1]
+        self.D_param = D_param
+        self.dip_prop = dip_prop
+
+    def _get_unobserved_nodes(self):
+        self.init_params(pi_param=self.pi_param, phi_param=self.phi_param,
+                         xi_param=self.xi_param, rho_param=self.rho_param,
+                         spasePi=True,
+                         change_sig_activity=self.change_sig_activity)
+
+    def _get_observed_nodes(self):
+        if self.purity_param is None:
+            self.purity = min(np.random.randn() * 0.1 + 0.7, 0.99)
+        else:
+            self.purity = self.purity_param
+        if self.D_param is None:
+            self.D = np.random.lognormal(5, 0.7, self.N).astype(int) + 1
+        else:
+            self.D = (self.D_param * np.ones(self.N)).astype(int)
+        # parameters and distribution chosen at random, worth fitting on TCGA
+        # data?
+        # I made some arbitrary choices of distribution, in particular for D
+        # (the coverage) and for copy number. Maybe this should be further
+        # parametrized?
+        # otherwise it is rather self explanatory with the code.
+        self.C_normal = 2 * np.ones(self.N)
+        if self.cn:
+            if self.dip_prop is None:
+                self.C_tumor_tot = np.max(
+                    ((np.random.lognormal(1, 0.3, self.N)).astype(int),
+                     np.ones(self.N)), axis=0)
+                C_strand1 = (np.random.beta(5, 3, self.N) * self.C_tumor_tot)\
+                    .astype(int)  # un peu trop de 0 pas forcément super grave
+            elif self.dip_prop < 1:
+                p = np.zeros(10)
+                infl_dip = np.min((1, self.dip_prop * 1.1))
+                p[2] = infl_dip
+                p[3] = (1 - infl_dip) / 2
+                p[4] = ((1 - infl_dip) / 2) / 3 * 2
+                p[1] = (1 - p.sum()) / 2
+                p[5:] = (1 - p.sum()) * \
+                    np.array([0.5, 0.25, 0.125, 1/16, 1/32]) / \
+                    np.array([0.5, 0.25, 0.125, 1/16, 1/32]).sum()
+                self.C_tumor_tot = np.random.choice(10, p=p, size=self.N)
+                idx = False * np.ones(self.N).astype(bool)
+                idx[self.C_tumor_tot == 2] = np.random.choice(
+                    [True, False], p=[9/11, 2/11],
+                    size=sum(self.C_tumor_tot == 2))
+                C_strand1 = np.zeros(self.N)
+                C_strand1[idx] = 1
+                C_strand1[~idx] = (np.random.beta(5, 3, len(C_strand1[~idx])) *
+                                   self.C_tumor_tot[~idx]).astype(int)
+            else:
+                self.C_tumor_tot = 2 * np.ones(self.N)
+                C_strand1 = np.ones(self.N)
+            max_mut = np.max(np.vstack((self.C_tumor_tot-C_strand1,
+                                        C_strand1)), axis=0)
+            self.C_tumor_mut = (np.random.rand(self.N) * max_mut)\
+                .astype(int) + 1
+        else:
+            self.C_tumor_tot = 2 * np.ones(self.N)
+            C_strand1 = np.ones(self.N)
+            self.C_tumor_mut = np.ones(self.N)
+
+        self.C_tumor_minor = np.min(np.vstack((self.C_tumor_tot-C_strand1,
+                                               C_strand1)), axis=0)
+
+        self.U = np.random.choice(self.J, self.N, replace=True, p=self.xi)
+        self.B = np.zeros(self.N)
+        for i in range(self.J):
+            phi_bar = self.phi[i] * self.purity * \
+                      self.C_tumor_mut[self.U == i] / \
+                      ((1-self.purity) * self.C_normal[self.U == i] +
+                       self.purity * self.C_tumor_tot[self.U == i])
+            self.B[self.U == i] = beta_binomial(self.D[self.U == i],
+                                                phi_bar, self.rho,
+                                                sum(self.U == i))
+
+        self.S = np.zeros(self.N)
+        for i in range(self.J):
+            self.S[self.U == i] = np.random.choice(self.L, sum(self.U == i),
+                                                   replace=True,
+                                                   p=self.pi[i, :])
+
+        self.T = np.zeros(self.N)
+        for i in range(self.L):
+            self.T[self.S == i] = np.random.choice(self.K, sum(self.S == i),
+                                                   replace=True,
+                                                   p=self.MU[i, :])
+
+    @property
+    def get_loglikelihood(self):
+        est = Estimator(self.T, self.B, self.C_normal, self.C_tumor_tot,
+                        self.C_tumor_minor, self.D, self.purity, self.J,
+                        inputMU=self.MU, pi=self.pi, phi=self.phi, xi=self.xi,
+                        tau=self.tau)
+        return est.get_loglikelihood
+
+    def _get_data_df(self):
+        data_df = pd.DataFrame({'mutation_id': ["mut_{}".format(i) for i in
+                                                range(1, self.N+1)],
+                                'chromosome': [1] * self.N,
+                                'position': np.arange(5, 5 + 10*self.N, 10),
+                                'ref_counts': self.D - self.B,
+                                'var_counts': self.B,
+                                'normal_cn': self.C_normal,
+                                'minor_cn': self.C_tumor_minor,
+                                'mut_cn': self.C_tumor_mut,
+                                'major_cn': self.C_tumor_tot -
+                                self.C_tumor_minor,
+                                'total_cn': self.C_tumor_tot,
+                                'trinucleotide': pd.Categorical(
+                                    self.T.astype(int),
+                                    categories=list(range(96)),
+                                    ordered=True),
+                                'signature': self.S.astype(int),
+                                'clone': self.U.astype(int)})
+        return data_df
+
+    def _get_cn_profile_df(self):
+        cn_df = pd.DataFrame({'chromosome': [1] * self.N,
+                              'start': np.arange(1, 1 + 10*self.N, 10),
+                              'end': np.arange(9, 9 + 10*self.N, 10),
+                              'minor': self.C_tumor_minor,
+                              'major': self.C_tumor_tot - self.C_tumor_minor})
+        return cn_df
