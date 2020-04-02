@@ -366,8 +366,8 @@ class DataWriter():
                           lambda x: PAT_LIST[x['trinucleotide']][4], axis=1),
                        't_ref_count': data_df.ref_counts,
                        't_alt_count': data_df.var_counts,
-                       'local_cn_a1': data_df.major_cn,
-                       'local_cn_a2': data_df.minor_cn})
+                       'local_cn_a1': data_df.minor_cn,
+                       'local_cn_a2': data_df.major_cn})
         data_df[phylo_fields].to_csv('{}/input.maf'.format(phylogicndt_outdir),
                                      sep='\t', index=False)
 
