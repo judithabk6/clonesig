@@ -5,7 +5,7 @@ import pandas as pd
 import os
 from sklearn import preprocessing
 import numpy as np
-from scipy.stats import binom, beta
+from scipy.stats import beta
 import pathlib
 import pickle
 from clonesig.estimator import Estimator
@@ -53,55 +53,13 @@ def beta_binomial(n, phi, rho, size=None):
     return X
 
 
-def get_ccf_no_adj(mult, cn, alt, ref, PURITY, grid_size=101):
-    """
-    function copied from https://github.com/broadinstitute/PhylogicNDT/blob/\
-        master/PhylogicSim/SimEngine.py last commit 01fd50b
-
-    Calculate the ccf distribution for a mutation given it's alt and ref count,
-    purity, cn and multiplicity.
-    Uses a binomial to compute the distirbution, which as of this writting, does
-    not make sense.
-    Parameters
-    ----------
-    mult : int
-        multiplicity of alternate allele
-    cn : int
-        total copy number
-    alt : type
-        number of alternate reads
-    ref : type
-        number of reference reads
-    PURITY : type
-        sample purity
-    grid_size : type
-        number of bins in which to divide the ccf histogram.
-    Returns
-    -------
-    numpy.array
-        Numpy array of size grid_size with the normalized ccf distribution.
-    """
-    N = len(mult)
-    ccf_space = np.linspace(0, 1, grid_size)
-    ccf_dist = np.zeros((N, grid_size))
-
-    for mult_1_bin_val_idx, mult_1_bin_val in enumerate(ccf_space):
-        x = mult_1_bin_val * mult * PURITY / (
-                    float(mult_1_bin_val) * mult * PURITY + mult_1_bin_val * \
-                    (cn - mult) * PURITY + (1 - mult_1_bin_val) * \
-                    (cn) * PURITY + 2 * (1.0 - PURITY))
-        m1_draw = binom.pmf(alt, alt + ref, x)
-        ccf_dist[:, mult_1_bin_val_idx] = m1_draw
-
-    ccf_dist[np.isnan(ccf_dist)] = 0.
-    row_sums = ccf_dist.sum(axis=1)
-    return ccf_dist / row_sums[:, np.newaxis]
-
 """ test values
 filename_maf = 'tmp/useful_final_qc_merge_cnv_purity.csv'
 patient = 'TCGA-CV-A45Y'
 folder = 'protected_hg38_vcf'
 """
+
+
 class MAFLoader:
     """
     abstract class for loader. For now it is not abstract, but it will
@@ -199,9 +157,10 @@ class DataWriter():
         trinucleotide_count_vaf = pd.merge(
             data_df.groupby('mutation_group').vaf_purity.mean().to_frame(),
             trinucleotide_count, left_index=True, right_index=True)
-        trinucleotide_count_vaf.insert(loc=0, column='sample_name',
-                                       value=['{}_tracksig'.format(sample_id)]
-                                       * len(trinucleotide_count_vaf))
+        trinucleotide_count_vaf.insert(
+            loc=0, column='sample_name',
+            value=['{}_tracksig'.format(sample_id)] *
+            len(trinucleotide_count_vaf))
         tracksig_outdir = '{}/tracksig'.format(foldername)
         pathlib.Path(tracksig_outdir).mkdir(parents=True, exist_ok=True)
         trinucleotide_count_vaf.to_csv(
@@ -338,19 +297,11 @@ class DataWriter():
                           sep='\t', index=False)
         cn_df.to_csv('{}/cnv_table.csv'.format(foldername),
                      sep='\t', index=False)
-        ccube_fields = ["mutation_id", "ccf_true", "minor_cn", "major_cn",
-                        "total_cn", "purity", "normal_cn", "mult_true", "vaf",
+        ccube_fields = ["mutation_id", "minor_cn", "major_cn",
+                        "total_cn", "purity", "normal_cn",
                         "total_counts", "var_counts", "ref_counts"]
-        data_df = data_df.assign(
-            ccf_true=data_df.apply(lambda x: self.phi[x['clone']], axis=1))
-        data_df = data_df.assign(purity=self.purity)
-        data_df = data_df.assign(mult_true=data_df.mut_cn)
         data_df = data_df.assign(total_counts=data_df.total_cn)
-        data_df = data_df.assign(vaf=data_df.ccf_true * data_df.purity *
-                                 data_df.mult_true / ((1 - data_df.purity) *
-                                                      data_df.normal_cn +
-                                                      data_df.purity *
-                                                      data_df.total_cn))
+        data_df = data_df.assign(purity=self.purity)
         ccube_df = data_df[ccube_fields]
         ccube_df.to_csv('{}/input.tsv'.format(ccube_outdir),
                         sep='\t', index=False)
@@ -396,24 +347,15 @@ class DataWriter():
                        sep='\t', index=False)
 
     def write_phylogicndt(self, foldername):
-        gridsize = 101
         phylogicndt_outdir = '{}/phylogicndt'.format(foldername)
         pathlib.Path(phylogicndt_outdir).mkdir(parents=True, exist_ok=True)
         phylo_fields = ['Hugo_Symbol', 'Chromosome', 'Start_position',
                         'Reference_Allele', 'Tumor_Seq_Allele2', 't_ref_count',
-                        't_alt_count']
-        ccf_colnames = ['ccf_{0:.2f}'.format(i) for i in
-                        np.linspace(0, 1, gridsize)]
+                        't_alt_count', 'local_cn_a1', 'local_cn_a2']
         data_df = self._get_data_df()
         data_df = data_df.assign(
             total_cn=lambda x: x['minor_cn'] + x['major_cn'])
-        ccf = get_ccf_no_adj(data_df.mut_cn,
-                             data_df.total_cn,
-                             data_df.var_counts,
-                             data_df.ref_counts,
-                             self.purity,
-                             grid_size=gridsize)
-        ccf_df = pd.DataFrame(data=ccf, columns=ccf_colnames)
+
         data_df = data_df. \
             assign(** {'Hugo_Symbol': 'Unknown',
                        'Chromosome': 'chr' + data_df.chromosome.astype(str),
@@ -423,10 +365,11 @@ class DataWriter():
                        'Tumor_Seq_Allele2': data_df.apply(
                           lambda x: PAT_LIST[x['trinucleotide']][4], axis=1),
                        't_ref_count': data_df.ref_counts,
-                       't_alt_count': data_df.var_counts})
-        phylogicndt_df = pd.concat((data_df[phylo_fields], ccf_df), axis=1)
-        phylogicndt_df.to_csv('{}/input.tsv'.format(phylogicndt_outdir),
-                              sep='\t', index=False)
+                       't_alt_count': data_df.var_counts,
+                       'local_cn_a1': data_df.major_cn,
+                       'local_cn_a2': data_df.minor_cn})
+        data_df[phylo_fields].to_csv('{}/input.maf'.format(phylogicndt_outdir),
+                                     sep='\t', index=False)
 
     def write_object(self, foldername):
         pathlib.Path(foldername).mkdir(parents=True, exist_ok=True)
@@ -435,14 +378,14 @@ class DataWriter():
             my_pickler.dump(self)
 
 
-
-class SimLoader(mixin_init_parameters.MixinInitParameters,DataWriter):
+class SimLoader(mixin_init_parameters.MixinInitParameters, DataWriter):
     """
     class to simulate data
     """
-    def __init__(self, N, J, inputMU=None, xi_param=None, pi_param=None, phi_param=None,
-                 rho_param=None, purity_param=None, change_sig_activity=True,
-                 cn=True, D_param=None, dip_prop=None):
+    def __init__(self, N, J, inputMU=None, xi_param=None, pi_param=None,
+                 phi_param=None, rho_param=None, purity_param=None,
+                 change_sig_activity=True, cn=True, D_param=None,
+                 dip_prop=None):
         """
         N is the number of mutations
         J is the number of clones
