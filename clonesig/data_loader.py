@@ -145,6 +145,8 @@ class DataWriter():
         data_df.reset_index(inplace=True, drop=True)
 
         data_df = data_df.assign(mutation_group=lambda x: x.index//100)
+        nbin = len(data_df)//100
+        data_df = data_df[data_df.mutation_group <= nbin - 1]
         trinucleotide_count = pd.pivot_table(index=['mutation_group'],
                                              columns=['trinucleotide'],
                                              values=['mutation_id'],
@@ -186,6 +188,8 @@ class DataWriter():
         data_df.sort_values(by='phi', inplace=True, ascending=False)
         data_df.reset_index(inplace=True, drop=True)
         data_df = data_df.assign(bin=lambda x: x.index//100 + 1)
+        nbin = len(data_df)//100
+        data_df = data_df[data_df.bin <= nbin]
         trinucleotide_count = pd.pivot_table(index=['bin'],
                                              columns=['trinucleotide'],
                                              values=['mutation_id'],
