@@ -79,10 +79,10 @@ def score2C_base(sim_subclonal, pred_subclonal):
 
     Parameters
     ----------
-    sim_subclonal: binary iteratble
+    sim_subclonal: binary iterable
                    array-like of length N, with 1 if the mutation is subclonal,
                    and 0 else, for the true labels
-    pred_subclonal: binary iteratble
+    pred_subclonal: binary iterable
                     array-like of length N, with 1 if the mutation is subclonal,
                     and 0 else, for the predicted labels
     """
@@ -142,10 +142,10 @@ def score_sig_1C_base(true_signatures, pred_signatures, threshold=0.95):
     precision recall for detected signatures
     Parameters
     ----------
-    true_signatures: binary iteratble
+    true_signatures: binary iterable
                      array-like of length L (number of signatures), with 1 if
                      the signature is active, 0 else, for the true values
-    pred_signatures: binary iteratble
+    pred_signatures: binary iterable
                      array-like of length L (number of signatures), with 1 if
                      the signature is active, 0 else, for the predicted values
     """
@@ -155,7 +155,7 @@ def score_sig_1C_base(true_signatures, pred_signatures, threshold=0.95):
             np.cumsum(np.sort(pred_signatures)[::-1]) >= threshold)]
     pred_sig_idx = np.where(pred_signatures >= min_thresh)[0]
 
-    pred_signatures_binary = np.zeros(65)
+    pred_signatures_binary = np.zeros(len(true_signatures))
     pred_signatures_binary[pred_sig_idx] = 1
 
     TP = sum((pred_signatures_binary == 1) & (true_signatures == 1))
@@ -177,10 +177,10 @@ def score_sig_1D_base(true_signatures, pred_signatures):
     percent of mutations with the right signature
     Parameters
     ----------
-    true_signatures: iteratble
+    true_signatures: iterable
                      array-like of length N (number of mutations), with the
                      true signature for each mutation
-    pred_signatures: iteratble
+    pred_signatures: iterable
                      array-like of length N (number of mutations), with the
                      predicted signature for each mutation
     """
