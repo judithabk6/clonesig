@@ -606,11 +606,12 @@ class Estimator(mixin_init_parameters.MixinInitParameters):
                 k = self.get_k_cn
         return - k * np.log(self.N) / 2 + self.get_loglikelihood
 
-    def get_bic_heuristics(self, dof=True, factor=0.033, cn=False):
+    def get_bic_heuristics(self, dof=True, factor=0.042, cn=False):
         """
         the factor is valid for dof=True
-        otherwise, we advise factor around 0.012 for the 65 signatures
-        or around 0.037 for a subset of signatures.
+        (O.O65 for a subset, O.O34 for 47 signatures)
+        otherwise, we advise factor around 0.015 for the 47 signatures
+        or around 0.040 for a subset of signatures.
         """
         if not cn:
             k = self.get_k

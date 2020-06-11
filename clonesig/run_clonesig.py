@@ -97,7 +97,7 @@ def split_clone_initialization(previous_est, inputMU):
     return new_phi, new_xi, new_pi
 
 
-def get_ll_test_dof(inputMU, nb_clones):
+def get_ll_test_dof(inputMU, nb_clones, nb_mut):
     """
     better model in the future, for now just coming from the simulations with
     30 signatures, without copy number. Will provide a better model later...
@@ -105,12 +105,12 @@ def get_ll_test_dof(inputMU, nb_clones):
     ev, _ = np.linalg.eig(1-sp.spatial.distance.squareform(
         sp.spatial.distance.pdist(inputMU, 'cosine')))
     dof = sum(ev > EV_DOF_THRESHOLD)
-    if dof == 26:
-        return -1.070 + 9.473 * nb_clones + 0 * dof
-    elif dof <= 12:
-        return -13.641 + 4.754 * nb_clones + 1.665 * dof
+    if dof == 21:
+        return -4.61 + 7.83 * nb_clones + 0 * dof + 0.00168 * nb_mut
+    elif dof <= 13:
+        return -14.2 + 5.04 * nb_clones + 1.23 * dof + 0.000992 * nb_mut
     else:
-        return -19.521 + 7.114 * nb_clones + 1.079 * dof
+        return -17.6 + 6.44 * nb_clones + 0.909 * dof + 0.00134 * nb_mut
 
 
 def lrtest(llH0, llH1, dof):
@@ -246,7 +246,7 @@ def remove_small_sigs(previous_est, single_clone_est, min_prop_sig, inputMU):
     return new_est, new_sc_est, new_inputMU
 
 
-def get_MU(cosmic_version=3, cancer_type=None, exome=False):
+def get_MU(cosmic_version=3, cancer_type=None, exome=False, artefact=False):
     """
     this function initializes the MU matrix with v2 or v3 from COSMIC.
     An exome version exists for v3 only.
@@ -279,13 +279,15 @@ def get_MU(cosmic_version=3, cancer_type=None, exome=False):
         sig_matrix = sig.values[:, 2:].astype(float).T
         new_sig_matrix = sig_matrix + mixin_init_parameters.ZERO_PADDING * (sig_matrix == 0)
         MU = new_sig_matrix / new_sig_matrix.sum(axis=1)[:, np.newaxis]
+        filter_filename = 'data/curated_match_signature_cancertype_tcgawes_literature.csv'
+        cancer_type_sig = pd.read_csv(pkg_resources.resource_stream(
+            'clonesig', filter_filename), sep='\t', index_col=0).values
         if cancer_type is not None:
-            filter_filename = 'data/match_cancer_type_sig_v3.csv'
-            cancer_type_sig = pd.read_csv(pkg_resources.resource_stream(
-                'clonesig', filter_filename), index_col=0).values
-            select = cancer_type_sig[cancer_type, :]
+            select = cancer_type_sig[:, cancer_type]
             subMU = MU[select.astype(bool), :]
         else:
+            if not artefact:
+                MU = MU[cancer_type_sig.sum(axis=1).astype(bool), :]
             subMU = MU.copy()
     elif cosmic_version == 2:
         if exome:
@@ -488,7 +490,7 @@ def run_clonesig(T, B, D, C_normal, C_tumor_tot, C_tumor_minor, purity,
                         pi=np.repeat(new_sc_est.pi, new_est.J, axis=0),
                         phi=new_est.phi, tau=new_est.tau, xi=new_est.xi,
                         nu=inputNu)
-    dof_test = get_ll_test_dof(new_inputMU, new_est.J)
+    dof_test = get_ll_test_dof(new_inputMU, new_est.J, new_est.N)
     lr, p = lrtest(cst_est.get_loglikelihood,
                    new_est.get_loglikelihood, dof_test)
     return new_est, lr, p, new_inputMU, cst_est, future_sigs
