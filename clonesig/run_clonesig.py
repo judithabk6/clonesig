@@ -5,6 +5,7 @@ import os
 import numpy as np
 import pkg_resources
 import scipy as sp
+from scipy import stats, special, spatial
 from collections import Iterable
 import sys
 from clonesig.estimator import Estimator, EV_DOF_THRESHOLD

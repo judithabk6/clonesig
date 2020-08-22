@@ -4,6 +4,7 @@
 import pandas as pd
 import numpy as np
 import scipy as sp
+from scipy import stats
 import itertools
 from sklearn.metrics import matthews_corrcoef, roc_auc_score
 from sklearn.metrics.cluster import v_measure_score

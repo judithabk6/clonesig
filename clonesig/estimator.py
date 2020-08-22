@@ -9,6 +9,7 @@ import sys
 import pandas as pd
 import numpy as np
 import scipy as sp
+from scipy import special, spatial
 from clonesig import mixin_init_parameters
 
 
