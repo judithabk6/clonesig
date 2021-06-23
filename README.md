@@ -2,10 +2,11 @@
 
 The possibility to sequence DNA in cancer samples has triggered much effort recently to identify the forces at the genomic level that shape tumor apparition and evolution. Two main approaches have been followed for that purpose: (i) deciphering the clonal composition of each tumour by using the observed prevalences of somatic mutations, and (ii) elucidating the mutational processes involved in the generation of those same somatic mutations. Currently, both subclonal and mutational signatures deconvolutions are performed separately, while they are both manifestations of the same underlying process.
 
-We present Clonesig, the first method that jointly infers subclonal and mutational signature composition evolution of a tumor sample form bulk sequencing. CloneSig is based on a probabilistic graphical model that models somatic mutations as derived from a mixture of subclones where different mutational signatures are active. Parameters of the model are estimated using an EM algorithm. 
+We present CloneSig, the first method that jointly infers subclonal and mutational signature composition evolution of a tumor sample form bulk sequencing. CloneSig is based on a probabilistic graphical model that models somatic mutations as derived from a mixture of subclones where different mutational signatures are active. Parameters of the model are estimated using an EM algorithm. 
 
-Details of the model, and results on real and simulated data can be found in XX.
+Details of the model, and results on real and simulated data can be found in the corresponding [publication](https://www.biorxiv.org/content/10.1101/825778v2), and [its companion repository for analyses](https://github.com/judithabk6/Clonesig_analysis).
 
+Abécassis, Judith, Fabien Reyal, and Jean-Philippe Vert. "CloneSig: Joint inference of intra-tumor heterogeneity and signature deconvolution in tumor bulk sequencing data." BioRxiv (2019): [825778](https://www.biorxiv.org/content/10.1101/825778v2).
 ## Installation
 
 Clonesig can be installed by executing
