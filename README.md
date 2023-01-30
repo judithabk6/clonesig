@@ -4,9 +4,12 @@ The possibility to sequence DNA in cancer samples has triggered much effort rece
 
 We present CloneSig, the first method that jointly infers subclonal and mutational signature composition evolution of a tumor sample form bulk sequencing. CloneSig is based on a probabilistic graphical model that models somatic mutations as derived from a mixture of subclones where different mutational signatures are active. Parameters of the model are estimated using an EM algorithm. 
 
-Details of the model, and results on real and simulated data can be found in the corresponding [publication](https://www.biorxiv.org/content/10.1101/825778v2), and [its companion repository for analyses](https://github.com/judithabk6/Clonesig_analysis).
+Details of the model, and results on real and simulated data can be found in the corresponding [publication](https://doi.org/10.1038/s41467-021-24992-y), and [its companion repository for analyses](https://github.com/judithabk6/Clonesig_analysis).
 
-Abécassis, Judith, Fabien Reyal, and Jean-Philippe Vert. "CloneSig: Joint inference of intra-tumor heterogeneity and signature deconvolution in tumor bulk sequencing data." BioRxiv (2019): [825778](https://www.biorxiv.org/content/10.1101/825778v2).
+Abécassis, J., Reyal, F. & Vert, JP. CloneSig can jointly infer intra-tumor heterogeneity and mutational signature activity in bulk tumor sequencing data. Nat Commun 12, 5352 (2021). https://doi.org/10.1038/s41467-021-24992-y
+
+In release 1.0.1 we have changed the license to the MIT license to enhance share and reuse of CloneSig.
+
 ## Installation
 
 Clonesig can be installed by executing
